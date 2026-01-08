@@ -2,27 +2,37 @@ pipeline {
     agent any
 
     environment {
+        APP_REPO   = "https://github.com/chetashree10/gs-spring-boot.git"
         IMAGE_NAME = "chetu20/springboot-complete"
         IMAGE_TAG  = "latest"
-        DOCKERHUB_CREDS = credentials('dockerhub-creds')
     }
 
     stages {
 
-        stage('Checkout Source Code') {
+        stage('Clean Workspace') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/chetashree10/app.git'
+                cleanWs()
             }
         }
 
-        stage('Build Application (Maven)') {
+        stage('Checkout Pipeline Repo') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Checkout Application Code') {
+            steps {
+                dir('app_code') {
+                    git branch: 'main', url: "${APP_REPO}"
+                }
+            }
+        }
+
+        stage('Build Application') {
             steps {
                 dir('app_code/complete') {
-                    sh '''
-                    mvn clean package -DskipTests
-                    ls -l target
-                    '''
+                    sh 'mvn clean package -DskipTests'
                 }
             }
         }
@@ -30,35 +40,32 @@ pipeline {
         stage('Docker Build') {
             steps {
                 dir('app_code/complete') {
+                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                }
+            }
+        }
+
+        stage('Docker Push') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
                     sh '''
-                    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                      echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                      docker push ${IMAGE_NAME}:${IMAGE_TAG}
                     '''
                 }
             }
         }
 
-        stage('Docker Login & Push') {
+        stage('Deploy to Kubernetes (Minikube)') {
             steps {
                 sh '''
-                echo "${DOCKERHUB_CREDS_PSW}" | docker login -u "${DOCKERHUB_CREDS_USR}" --password-stdin
-                docker push ${IMAGE_NAME}:${IMAGE_TAG}
-                '''
-            }
-        }
-
-        stage('Deploy to Dev (Kubernetes)') {
-            steps {
-                sh '''
-                kubectl get nodes
-
-                kubectl apply -f app/k8s/dev/namespace.yaml || true
-                kubectl apply -n dev -f app/k8s/dev/configmap.yaml
-                kubectl apply -n dev -f app/k8s/dev/deployment.yaml
-                kubectl apply -n dev -f app/k8s/dev/service.yaml
-
-                kubectl rollout status deployment/springboot-complete -n dev
-                kubectl get pods -n dev
-                kubectl get svc -n dev
+                  kubectl config use-context minikube
+                  kubectl apply -f k8s/dev/namespace.yaml
+                  kubectl apply -f k8s/dev/
                 '''
             }
         }
@@ -66,10 +73,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ Pipeline completed successfully!"
+            echo "✅ CI/CD Pipeline completed successfully"
         }
         failure {
-            echo "❌ Pipeline failed. Check logs."
+            echo "❌ CI/CD Pipeline failed"
         }
     }
 }
