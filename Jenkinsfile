@@ -1,66 +1,49 @@
 pipeline {
     agent any
-
-    environment {
-        APP_NAME = "springboot-demo"
-        DOCKER_IMAGE = "dockerhub_username/springboot-demo"
-        DOCKER_CREDENTIALS_ID = "dockerhub-creds"
-        K8S_NAMESPACE = "dev"
-    }
-
     stages {
 
-        stage('Checkout') {
+        stage('Checkout Jenkinsfile') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/chetashree10/gs-spring-boot.git'
+                git url: 'https://github.com/chetashree10/app.git', branch: 'main'
+            }
+        }
+
+        stage('Checkout App Code') {
+            steps {
+                dir('app_code') {
+                    git url: 'https://github.com/chetashree10/gs-spring-boot.git', branch: 'main'
+                }
             }
         }
 
         stage('Build & Unit Test') {
             steps {
-                sh 'mvn clean test package'
+                dir('app_code/complete') {
+                    sh 'mvn clean install'
+                }
             }
         }
 
-        stage('Docker Build') {
+        stage('Docker Build & Push') {
             steps {
-                sh 'docker build -t $DOCKER_IMAGE:latest .'
-            }
-        }
-
-        stage('Docker Login & Push') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: DOCKER_CREDENTIALS_ID,
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    sh '''
-                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                    docker push $DOCKER_IMAGE:latest
-                    '''
+                dir('app_code/complete') {
+                    sh 'docker build -t chetu20/springboot-complete:latest .'
+                    sh 'docker push chetu20/springboot-complete:latest'
                 }
             }
         }
 
         stage('Deploy to Dev (Kubernetes)') {
             steps {
-                sh '''
-                kubectl get nodes
-                kubectl apply -f k8s/dev/
-                kubectl rollout status deployment/springboot-demo -n dev
-                '''
+                dir('app_code/k8s/dev') {
+                    sh 'kubectl apply -f .'
+                }
             }
         }
     }
 
     post {
-        success {
-            echo '✅ Pipeline executed successfully'
-        }
-        failure {
-            echo '❌ Pipeline failed'
-        }
+        success { echo "✅ Pipeline completed successfully" }
+        failure { echo "❌ Pipeline failed" }
     }
 }
