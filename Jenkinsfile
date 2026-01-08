@@ -12,23 +12,20 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/chetashree10/gs-spring-boot.git'
+                git branch: 'main',
+                    url: 'https://github.com/chetashree10/gs-spring-boot.git'
             }
         }
 
         stage('Build & Unit Test') {
             steps {
-                dir('app/sample-spring-boot-app') {
-                    sh 'mvn clean test package'
-                }
+                sh 'mvn clean test package'
             }
         }
 
         stage('Docker Build') {
             steps {
-                dir('app/sample-spring-boot-app') {
-                    sh 'docker build -t $DOCKER_IMAGE:latest .'
-                }
+                sh 'docker build -t $DOCKER_IMAGE:latest .'
             }
         }
 
@@ -40,7 +37,7 @@ pipeline {
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     sh '''
-                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                     docker push $DOCKER_IMAGE:latest
                     '''
                 }
@@ -50,8 +47,9 @@ pipeline {
         stage('Deploy to Dev (Kubernetes)') {
             steps {
                 sh '''
+                kubectl get nodes
                 kubectl apply -f k8s/dev/
-                kubectl rollout status deployment/springboot-app -n dev
+                kubectl rollout status deployment/springboot-demo -n dev
                 '''
             }
         }
