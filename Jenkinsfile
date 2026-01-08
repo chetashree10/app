@@ -2,7 +2,6 @@ pipeline {
     agent any
 
     environment {
-        APP_NAME = "springboot-complete"
         DOCKER_IMAGE = "chetu20/springboot-complete"
         DOCKER_CREDENTIALS_ID = "dockerhub-creds"
         K8S_NAMESPACE = "dev"
@@ -10,27 +9,28 @@ pipeline {
 
     stages {
 
-        stage('Checkout Jenkinsfile') {
+        stage('Checkout Jenkins Repo') {
             steps {
-                // Jenkinsfile repo
-                git branch: 'main', url: 'https://github.com/chetashree10/app.git'
+                git branch: 'main',
+                    url: 'https://github.com/chetashree10/app.git'
             }
         }
 
-        stage('Checkout Spring Boot App') {
+        stage('Checkout Application Code') {
             steps {
-                // Spring Boot repo cloned into 'app_code'
                 dir('app_code') {
-                    git branch: 'main', url: 'https://github.com/chetashree10/gs-spring-boot.git'
+                    git branch: 'main',
+                        url: 'https://github.com/chetashree10/gs-spring-boot.git'
                 }
             }
         }
 
-        stage('Build & Unit Test') {
+        stage('Build Spring Boot App') {
             steps {
-                // Run Maven exactly where pom.xml exists
                 dir('app_code/complete') {
-                    sh './mvnw clean install'
+                    sh '''
+                    mvn clean package
+                    '''
                 }
             }
         }
@@ -38,8 +38,9 @@ pipeline {
         stage('Docker Build') {
             steps {
                 dir('app_code/complete') {
-                    // Build Docker image from folder containing .jar
-                    sh 'docker build -t $DOCKER_IMAGE:latest .'
+                    sh '''
+                    docker build -t ${DOCKER_IMAGE}:latest .
+                    '''
                 }
             }
         }
@@ -52,8 +53,8 @@ pipeline {
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     sh '''
-                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                    docker push $DOCKER_IMAGE:latest
+                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                    docker push ${DOCKER_IMAGE}:latest
                     '''
                 }
             }
@@ -61,23 +62,26 @@ pipeline {
 
         stage('Deploy to Dev (Kubernetes)') {
             steps {
-                dir('app_code/complete') {
-                    // Adjust path if k8s manifests are inside 'k8s/dev/'
-                    sh '''
-                    kubectl apply -n $K8S_NAMESPACE -f k8s/dev/
-                    kubectl rollout status deployment/$APP_NAME -n $K8S_NAMESPACE
-                    '''
-                }
+                sh '''
+                kubectl config use-context minikube
+
+                kubectl apply -f app/k8s/dev/namespace.yaml
+                kubectl apply -n dev -f app/k8s/dev/configmap.yaml
+                kubectl apply -n dev -f app/k8s/dev/deployment.yaml
+                kubectl apply -n dev -f app/k8s/dev/service.yaml
+
+                kubectl rollout status deployment/springboot-complete -n dev
+                '''
             }
         }
     }
 
     post {
         success {
-            echo '✅ Pipeline executed successfully'
+            echo '✅ CI/CD Pipeline executed successfully'
         }
         failure {
-            echo '❌ Pipeline failed'
+            echo '❌ CI/CD Pipeline failed'
         }
     }
 }
