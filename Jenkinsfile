@@ -1,12 +1,12 @@
 pipeline {
     agent any
-    stages {
 
-        stage('Checkout Jenkinsfile') {
-            steps {
-                git url: 'https://github.com/chetashree10/app.git', branch: 'main'
-            }
-        }
+    environment {
+        DOCKER_IMAGE = "chetu20/springboot-complete:latest"
+        KUBE_NAMESPACE = "dev"
+    }
+
+    stages {
 
         stage('Checkout App Code') {
             steps {
@@ -19,7 +19,7 @@ pipeline {
         stage('Build & Unit Test') {
             steps {
                 dir('app_code/complete') {
-                    sh 'mvn clean install'
+                    sh 'mvn clean test package'
                 }
             }
         }
@@ -27,8 +27,10 @@ pipeline {
         stage('Docker Build & Push') {
             steps {
                 dir('app_code/complete') {
-                    sh 'docker build -t chetu20/springboot-complete:latest .'
-                    sh 'docker push chetu20/springboot-complete:latest'
+                    sh """
+                        docker build -t ${DOCKER_IMAGE} .
+                        docker push ${DOCKER_IMAGE}
+                    """
                 }
             }
         }
@@ -43,7 +45,11 @@ pipeline {
     }
 
     post {
-        success { echo "✅ Pipeline completed successfully" }
-        failure { echo "❌ Pipeline failed" }
+        success {
+            echo "✅ Pipeline completed successfully"
+        }
+        failure {
+            echo "❌ Pipeline failed"
+        }
     }
 }
