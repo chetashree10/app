@@ -2,66 +2,52 @@ pipeline {
     agent any
 
     environment {
-        APP_NAME = "springboot-demo"
-        DOCKER_IMAGE = "dockerhub_username/springboot-demo"
-        DOCKER_CREDENTIALS_ID = "dockerhub-creds"
-        K8S_NAMESPACE = "dev"
+        DOCKER_IMAGE = "chetu20/springboot-complete:latest" // Docker Hub repo
+        DOCKER_CREDENTIALS_ID = "dockerhub-creds"          // Add your DockerHub credentials in Jenkins
+        KUBE_NAMESPACE = "dev"
     }
 
     stages {
 
-        stage('Checkout Jenkinsfile') {
-            steps {
-                git branch: 'main', url: 'https://github.com/chetashree10/app.git'
-            }
-        }
-
         stage('Checkout App Code') {
             steps {
-                dir('app_code') {
-                    git branch: 'main', url: 'https://github.com/chetashree10/gs-spring-boot.git'
-                }
+                git url: 'https://github.com/chetashree10/gs-spring-boot.git', branch: 'main'
             }
         }
 
         stage('Build & Unit Test') {
             steps {
-                dir('app_code/app/sample-spring-boot-app') {
+                dir('complete') {
+                    // Build Maven project
                     sh 'mvn clean test package'
                 }
             }
         }
 
-        stage('Docker Build') {
+        stage('Docker Build & Push') {
             steps {
-                dir('app_code/app/sample-spring-boot-app') {
-                    sh 'docker build -t $DOCKER_IMAGE:latest .'
-                }
-            }
-        }
+                dir('complete') {
+                    script {
+                        // Login to Docker Hub
+                        withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                            sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+                        }
 
-        stage('Docker Login & Push') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: DOCKER_CREDENTIALS_ID,
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    sh '''
-                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                    docker push $DOCKER_IMAGE:latest
-                    '''
+                        // Build and push Docker image
+                        sh """
+                            docker build -t ${DOCKER_IMAGE} .
+                            docker push ${DOCKER_IMAGE}
+                        """
+                    }
                 }
             }
         }
 
         stage('Deploy to Dev (Kubernetes)') {
             steps {
-                dir('app_code/app/sample-spring-boot-app') {
-                    sh '''
-                    kubectl apply -n $K8S_NAMESPACE -f k8s/dev/
-                    kubectl rollout status deployment/springboot-app -n $K8S_NAMESPACE
-                    '''
+                dir('complete/k8s/dev') {
+                    // Apply K8s manifests
+                    sh 'kubectl apply -f .'
                 }
             }
         }
@@ -69,10 +55,10 @@ pipeline {
 
     post {
         success {
-            echo '✅ Pipeline executed successfully'
+            echo "✅ Pipeline completed successfully. Docker image pushed to ${DOCKER_IMAGE}"
         }
         failure {
-            echo '❌ Pipeline failed'
+            echo "❌ Pipeline failed. Please check the logs"
         }
     }
 }
