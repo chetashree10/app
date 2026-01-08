@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         APP_NAME = "springboot-demo"
-        DOCKER_IMAGE = "dockerhub_username/springboot-demo"  // <-- Replace with your DockerHub username
+        DOCKER_IMAGE = "chetu20/springboot-demo"   
         DOCKER_CREDENTIALS_ID = "dockerhub-creds"
         K8S_NAMESPACE = "dev"
     }
