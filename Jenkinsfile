@@ -53,16 +53,16 @@ pipeline {
 
         stage('Deploy to Dev (Kubernetes)') {
             steps {
-                sh '''
-                kubectl get nodes
+              sh '''
+        kubectl get nodes
 
-                kubectl apply -f app/k8s/dev/namespace.yaml || true
-                kubectl apply -n dev -f app/k8s/dev/configmap.yaml
-                kubectl apply -n dev -f app/k8s/dev/deployment.yaml
-                kubectl apply -n dev -f app/k8s/dev/service.yaml
+        kubectl apply -f app/k8s/dev/namespace.yaml || true
+        kubectl apply -n dev -f app/k8s/dev/configmap.yaml
+        kubectl apply -n dev -f app/k8s/dev/deployment.yaml
+        kubectl apply -n dev -f app/k8s/dev/service.yaml
 
-                kubectl rollout status deployment/springboot-complete -n dev
-                '''
+        kubectl rollout status deployment/springboot-complete -n dev
+        '''
             }
         }
     }
