@@ -2,63 +2,65 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "chetu20/springboot-complete:latest" // Docker Hub repo
-        DOCKER_CREDENTIALS_ID = "dockerhub-creds"          // Add your DockerHub credentials in Jenkins
-        KUBE_NAMESPACE = "dev"
+        DOCKER_IMAGE = "chetu20/springboot-complete"
+        DOCKER_TAG   = "latest"
+        KUBECONFIG   = "/root/.kube/config"
     }
 
     stages {
 
-        stage('Checkout App Code') {
+        stage('Checkout') {
             steps {
-                git url: 'https://github.com/chetashree10/gs-spring-boot.git', branch: 'main'
+                git branch: 'main',
+                    url: 'https://github.com/chetashree10/app.git'
             }
         }
 
         stage('Build & Unit Test') {
             steps {
-                dir('complete') {
-                    // Build Maven project
+                dir('app') {
                     sh 'mvn clean test package'
                 }
             }
         }
 
-        stage('Docker Build & Push') {
+        stage('Docker Build') {
             steps {
-                dir('complete') {
-                    script {
-                        // Login to Docker Hub
-                        withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                            sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
-                        }
+                dir('app') {
+                    sh '''
+                      docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
+                    '''
+                }
+            }
+        }
 
-                        // Build and push Docker image
-                        sh """
-                            docker build -t ${DOCKER_IMAGE} .
-                            docker push ${DOCKER_IMAGE}
-                        """
-                    }
+        stage('Docker Login & Push') {
+            steps {
+                withCredentials([string(credentialsId: 'dockerhub-password', variable: 'DOCKER_PASS')]) {
+                    sh '''
+                      echo $DOCKER_PASS | docker login -u chetu20 --password-stdin
+                      docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
+                    '''
                 }
             }
         }
 
         stage('Deploy to Dev (Kubernetes)') {
             steps {
-                dir('complete/k8s/dev') {
-                    // Apply K8s manifests
-                    sh 'kubectl apply -f .'
-                }
+                sh '''
+                  kubectl apply -f k8s/dev/namespace.yaml
+                  kubectl apply -f k8s/dev/
+                '''
             }
         }
     }
 
     post {
         success {
-            echo "✅ Pipeline completed successfully. Docker image pushed to ${DOCKER_IMAGE}"
+            echo "✅ Pipeline completed successfully"
         }
         failure {
-            echo "❌ Pipeline failed. Please check the logs"
+            echo "❌ Pipeline failed"
         }
     }
 }
