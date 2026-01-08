@@ -2,8 +2,8 @@ pipeline {
     agent any
 
     environment {
-        APP_NAME = "springboot-demo"
-        DOCKER_IMAGE = "dockerhub_username/springboot-demo"
+        APP_NAME = "springboot-complete"
+        DOCKER_IMAGE = "chetu20/springboot-complete"
         DOCKER_CREDENTIALS_ID = "dockerhub-creds"
         K8S_NAMESPACE = "dev"
     }
@@ -12,12 +12,14 @@ pipeline {
 
         stage('Checkout Jenkinsfile') {
             steps {
+                // Jenkinsfile repo
                 git branch: 'main', url: 'https://github.com/chetashree10/app.git'
             }
         }
 
-        stage('Checkout App Code') {
+        stage('Checkout Spring Boot App') {
             steps {
+                // Spring Boot repo cloned into 'app_code'
                 dir('app_code') {
                     git branch: 'main', url: 'https://github.com/chetashree10/gs-spring-boot.git'
                 }
@@ -26,15 +28,17 @@ pipeline {
 
         stage('Build & Unit Test') {
             steps {
-                dir('app_code/app/sample-spring-boot-app/complete/gs-spring-boot/complete') {
-                    sh 'mvn clean test package'
+                // Run Maven exactly where pom.xml exists
+                dir('app_code/complete') {
+                    sh './mvnw clean install'
                 }
             }
         }
 
         stage('Docker Build') {
             steps {
-                dir('app_code/app/sample-spring-boot-app') {
+                dir('app_code/complete') {
+                    // Build Docker image from folder containing .jar
                     sh 'docker build -t $DOCKER_IMAGE:latest .'
                 }
             }
@@ -57,10 +61,11 @@ pipeline {
 
         stage('Deploy to Dev (Kubernetes)') {
             steps {
-                dir('app_code/app/sample-spring-boot-app') {
+                dir('app_code/complete') {
+                    // Adjust path if k8s manifests are inside 'k8s/dev/'
                     sh '''
                     kubectl apply -n $K8S_NAMESPACE -f k8s/dev/
-                    kubectl rollout status deployment/springboot-app -n $K8S_NAMESPACE
+                    kubectl rollout status deployment/$APP_NAME -n $K8S_NAMESPACE
                     '''
                 }
             }
