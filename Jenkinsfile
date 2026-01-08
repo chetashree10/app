@@ -28,34 +28,25 @@ pipeline {
         stage('Build Spring Boot App') {
             steps {
                 dir('app_code/complete') {
-                    sh '''
-                    mvn clean package
-                    '''
+                    sh 'mvn clean package'
                 }
             }
         }
 
-        stage('Docker Build') {
+        stage('Docker Build & Push') {
             steps {
                 dir('app_code/complete') {
-                    sh '''
-                    docker build -t ${DOCKER_IMAGE}:latest .
-                    '''
-                }
-            }
-        }
-
-        stage('Docker Login & Push') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: DOCKER_CREDENTIALS_ID,
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    sh '''
-                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                    docker push ${DOCKER_IMAGE}:latest
-                    '''
+                    withCredentials([usernamePassword(
+                        credentialsId: DOCKER_CREDENTIALS_ID,
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh '''
+                        docker build -t ${DOCKER_IMAGE}:latest .
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push ${DOCKER_IMAGE}:latest
+                        '''
+                    }
                 }
             }
         }
@@ -63,9 +54,9 @@ pipeline {
         stage('Deploy to Dev (Kubernetes)') {
             steps {
                 sh '''
-                kubectl config use-context minikube
+                kubectl get nodes
 
-                kubectl apply -f app/k8s/dev/namespace.yaml
+                kubectl apply -f app/k8s/dev/namespace.yaml || true
                 kubectl apply -n dev -f app/k8s/dev/configmap.yaml
                 kubectl apply -n dev -f app/k8s/dev/deployment.yaml
                 kubectl apply -n dev -f app/k8s/dev/service.yaml
