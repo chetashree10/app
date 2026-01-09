@@ -4,7 +4,7 @@ pipeline {
     environment {
         IMAGE_NAME = "chetu20/springboot-complete"
         TAG = "latest"
-        KUBECONFIG = "/root/.kube/config"
+        KUBECONFIG = "/home/chetu/.kube/config"
     }
 
     stages {
@@ -12,13 +12,13 @@ pipeline {
         stage('Checkout') {
             steps {
                 git branch: 'main',
-        	url: ' https://github.com/chetashree10/gs-spring-boot.git’
+                    url: 'https://github.com/chetashree10/app.git'
             }
         }
 
         stage('Build Application') {
             steps {
-                dir('app/complete') {
+                dir('app/initial') {
                     sh './mvnw clean package -DskipTests'
                 }
             }
@@ -26,7 +26,7 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                dir('app/complete') {
+                dir('app/initial') {
                     sh 'docker build -t $IMAGE_NAME:$TAG .'
                 }
             }
