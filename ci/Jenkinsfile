@@ -1,0 +1,80 @@
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = "chetu20/springboot-complete"
+        TAG = "latest"
+        KUBECONFIG = "/root/.kube/config"
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+        	url: ' https://github.com/chetashree10/gs-spring-boot.git’
+            }
+        }
+
+        stage('Build Application') {
+            steps {
+                dir('app/complete') {
+                    sh './mvnw clean package -DskipTests'
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                dir('app/complete') {
+                    sh 'docker build -t $IMAGE_NAME:$TAG .'
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                      echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                      docker push $IMAGE_NAME:$TAG
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy to Dev (K8s)') {
+            steps {
+                sh '''
+                  kubectl apply -f k8s/dev/namespace.yaml
+                  kubectl apply -f k8s/dev/configmap.yaml
+                  kubectl apply -f k8s/dev/deployment.yaml
+                  kubectl apply -f k8s/dev/service.yaml
+                '''
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                sh '''
+                  kubectl rollout status deployment/springboot-app -n dev
+                  kubectl get pods -n dev
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '✅ CI/CD Pipeline completed successfully'
+        }
+        failure {
+            echo '❌ Pipeline failed – check logs'
+        }
+    }
+}
+

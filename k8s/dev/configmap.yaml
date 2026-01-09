@@ -4,6 +4,5 @@ metadata:
   name: springboot-config
   namespace: dev
 data:
-  SPRING_PROFILES_ACTIVE: dev
-  DB_HOST: mysql
-  KAFKA_BROKER: kafka:9092
+  SERVER_PORT: "8082"
+
